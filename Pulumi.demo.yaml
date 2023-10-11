@@ -1,0 +1,5 @@
+config:
+  aws:profile: demo
+  aws:region: us-east-1
+  baseCidrBlock:  10.0.0.0/16
+  maxZones: 3

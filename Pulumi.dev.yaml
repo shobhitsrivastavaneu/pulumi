@@ -1,0 +1,7 @@
+config:
+  aws:profile: dev
+  aws:region: us-east-1
+  baseCidrBlock: 
+    - 10.0.1.0/16
+    - 10.0.2.0/16
+    - 10.0.4.0/16
