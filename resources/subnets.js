@@ -1,18 +1,26 @@
 const aws = require("@pulumi/aws");
 
-function createSubnets(vpc, azs, type, count) {
+function createSubnets(vpc, azs, type, count, baseCidrBlock, ipValue, baseVal) {
   const subnets = [];
-  const base = type === "public" ? 0 : 3;
-
+  const base = baseVal;
+  const baseOctets = baseCidrBlock.split(".");
+  let thirdOctet = parseInt(baseOctets[2], 10);
   for (let i = 0; i < count; i++) {
+    const cidrBlock = `${baseOctets[0]}.${baseOctets[1]}.${
+      thirdOctet + base + i
+    }.${baseOctets[3]}/24`;
     subnets.push(
-      new aws.ec2.Subnet(`${type}Subnet-${i}`, {
-        cidrBlock: `10.0.${base + i}.0/24`,
-        vpcId: vpc.id,
-        name: `My ${type.charAt(0).toUpperCase() + type.slice(1)} Subnet`,
-        mapPublicIpOnLaunch: type === "public",
-        availabilityZone: azs.then((az) => az.names[i]),
-      },{ dependsOn: [vpc] })
+      new aws.ec2.Subnet(
+        `${type}Subnet-${i}`,
+        {
+          cidrBlock: cidrBlock,
+          vpcId: vpc.id,
+          name: `My ${type.charAt(0).toUpperCase() + type.slice(1)} Subnet`,
+          mapPublicIpOnLaunch: type === "public",
+          availabilityZone: azs.then((az) => az.names[i]),
+        },
+        { dependsOn: [vpc] }
+      )
     );
   }
   return subnets;
