@@ -16,34 +16,37 @@ const maxZones = config.get("maxZones");
 const azs = aws.getAvailabilityZones({ state: "available" });
 const vpc = createVpc(baseCidrBlock, ipRange);
 const ig = createInternetGateway(vpc.id);
-azs.then((data) => {
-  console.log("Data--", data.names?.length);
-  const publicSubnets = createSubnets(
-    vpc,
-    azs,
-    "public",
-    Math.min(maxZones, data.names?.length),
-    baseCidrBlock,
-    ipRange,
-    0
-  );
-  const privateSubnets = createSubnets(
-    vpc,
-    azs,
-    "private",
-    Math.min(maxZones, data.names?.length),
-    baseCidrBlock,
-    ipRange,
-    4
-  );
+azs
+  .then((data) => {
+    const publicSubnets = createSubnets(
+      vpc,
+      azs,
+      "public",
+      Math.min(maxZones, data.names?.length),
+      baseCidrBlock,
+      ipRange,
+      0
+    );
+    const privateSubnets = createSubnets(
+      vpc,
+      azs,
+      "private",
+      Math.min(maxZones, data.names?.length),
+      baseCidrBlock,
+      ipRange,
+      4
+    );
 
-  const publicRouteTable = createRouteTable(vpc, "public");
-  associateRouteTable(publicSubnets, publicRouteTable, "public");
+    const publicRouteTable = createRouteTable(vpc, "public");
+    associateRouteTable(publicSubnets, publicRouteTable, "public");
 
-  const privateRouteTable = createRouteTable(vpc, "private");
-  associateRouteTable(privateSubnets, privateRouteTable, "private");
+    const privateRouteTable = createRouteTable(vpc, "private");
+    associateRouteTable(privateSubnets, privateRouteTable, "private");
 
-  createPublicRoute(publicRouteTable, ig.id);
-});
+    createPublicRoute(publicRouteTable, ig.id);
+  })
+  .catch((error) => {
+    console.error("Error creating subnets", error);
+  });
 
 exports.vpcId = vpc.id;

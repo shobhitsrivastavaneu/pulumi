@@ -1,6 +1,6 @@
 const aws = require("@pulumi/aws");
 
-function createRouteTable(vpc, type) {
+createRouteTable = (vpc, type) => {
   return new aws.ec2.RouteTable(
     `${type}RouteTable`,
     {
@@ -11,8 +11,8 @@ function createRouteTable(vpc, type) {
     },
     { dependsOn: [vpc] }
   );
-}
-function associateRouteTable(subnets, routeTable, type) {
+};
+associateRouteTable = (subnets, routeTable, type) => {
   subnets.forEach((subnet, idx) => {
     new aws.ec2.RouteTableAssociation(
       `${type}RTA-${idx}`,
@@ -23,9 +23,9 @@ function associateRouteTable(subnets, routeTable, type) {
       { dependsOn: [routeTable] }
     );
   });
-}
+};
 
-function createPublicRoute(routeTable, gatewayId) {
+createPublicRoute = (routeTable, gatewayId) => {
   return new aws.ec2.Route(
     "publicRoute",
     {
@@ -35,7 +35,7 @@ function createPublicRoute(routeTable, gatewayId) {
     },
     { dependsOn: [routeTable] }
   );
-}
+};
 
 exports.createRouteTable = createRouteTable;
 exports.associateRouteTable = associateRouteTable;
