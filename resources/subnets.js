@@ -1,6 +1,6 @@
 const aws = require("@pulumi/aws");
 
-function createSubnets(vpc, azs, type, count, baseCidrBlock, ipValue, baseVal) {
+createSubnets = (vpc, azs, type, count, baseCidrBlock, ipValue, baseVal) => {
   const subnets = [];
   const base = baseVal;
   const baseOctets = baseCidrBlock.split(".");
@@ -24,6 +24,6 @@ function createSubnets(vpc, azs, type, count, baseCidrBlock, ipValue, baseVal) {
     );
   }
   return subnets;
-}
+};
 
 exports.createSubnets = createSubnets;
