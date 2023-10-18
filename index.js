@@ -17,6 +17,7 @@ const volumeSize = config.get("volumeSize");
 const volumeType = config.get("volumeType");
 const keyName = config.get("keyName");
 const amiId = config.get("amiId");
+const ec2Name = config.get("ec2Name");
 const securityName = config.get("securityName");
 const azs = aws.getAvailabilityZones({ state: "available" });
 const vpc = createVpc(baseCidrBlock, ipRange);
