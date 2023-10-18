@@ -16,6 +16,8 @@ const maxZones = config.get("maxZones");
 const volumeSize = config.get("volumeSize");
 const volumeType = config.get("volumeType");
 const keyName = config.get("keyName");
+const amiId = config.get("amiId");
+const securityName = config.get("securityName");
 const azs = aws.getAvailabilityZones({ state: "available" });
 const vpc = createVpc(baseCidrBlock, ipRange);
 const ig = createInternetGateway(vpc.id);
@@ -59,54 +61,51 @@ azs
             fromPort: 80,
             toPort: 80,
             cidrBlocks: ["0.0.0.0/0"],
+            ipv6CidrBlocks: ["::/0"],
           },
           {
             protocol: "tcp",
             fromPort: 22,
             toPort: 22,
             cidrBlocks: ["0.0.0.0/0"],
+            ipv6CidrBlocks: ["::/0"],
           },
           {
             protocol: "tcp",
             fromPort: 443,
             toPort: 443,
             cidrBlocks: ["0.0.0.0/0"],
+            ipv6CidrBlocks: ["::/0"],
           },
           {
             protocol: "tcp",
             fromPort: 8080,
             toPort: 8080,
             cidrBlocks: ["0.0.0.0/0"],
+            ipv6CidrBlocks: ["::/0"],
           },
         ],
+        tags: {
+          Name: securityName,
+        },
       }
     );
-    aws.ec2
-      .getAmi({
-        mostRecent: true,
-        filters: [
-          {
-            name: "state",
-            values: ["available"],
-          },
-        ],
-        owners: ["252513075420"],
-      })
-      .then((ami) => {
-        new aws.ec2.Instance("appServer", {
-          instanceType: "t2.micro",
-          ami: ami.id,
-          vpcSecurityGroupIds: [appSecurityGroup.id],
-          subnetId: publicSubnets[0],
-          keyName: keyName,
-          rootBlockDevice: {
-            volumeSize: volumeSize,
-            volumeType: volumeType,
-            deleteOnTermination: true,
-          },
-          disableApiTermination: true,
-        });
-      });
+    new aws.ec2.Instance("appServer", {
+      instanceType: "t2.micro",
+      ami: amiId,
+      vpcSecurityGroupIds: [appSecurityGroup.id],
+      subnetId: publicSubnets[0],
+      keyName: keyName,
+      rootBlockDevice: {
+        volumeSize: volumeSize,
+        volumeType: volumeType,
+        deleteOnTermination: true,
+      },
+      tags: {
+        Name: ec2Name,
+      },
+      disableApiTermination: false,
+    });
   })
   .catch((error) => {
     console.error("Error creating subnets", error);

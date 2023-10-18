@@ -1,9 +1,12 @@
 config:
   aws:profile: demo
   aws:region: us-west-2
-  baseCidrBlock:  10.0.0.0
+  baseCidrBlock: 10.0.0.0
   ipRange: 16
   maxZones: 3
   volumeSize: 25
   volumeType: "gp2"
   keyName: "ec2first"
+  amiId: ""
+  securityName: "application security group"
+  ec2Name: "EC2"

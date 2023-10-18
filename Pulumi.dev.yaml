@@ -7,3 +7,6 @@ config:
   volumeSize: 25
   volumeType: "gp2"
   keyName: "ec2first"
+  amiId: ""
+  securityName: "application security group"
+  ec2Name: "EC2"
