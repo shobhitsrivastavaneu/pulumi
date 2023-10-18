@@ -4,3 +4,6 @@ config:
   baseCidrBlock:  10.0.0.0
   ipRange: 16
   maxZones: 3
+  volumeSize: 25
+  volumeType: "gp2"
+  keyName: "ec2first"

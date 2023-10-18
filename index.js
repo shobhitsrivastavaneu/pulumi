@@ -13,6 +13,9 @@ const config = new pulumi.Config();
 const baseCidrBlock = config.get("baseCidrBlock");
 const ipRange = config.get("ipRange");
 const maxZones = config.get("maxZones");
+const volumeSize = config.get("volumeSize");
+const volumeType = config.get("volumeType");
+const keyName = config.get("keyName");
 const azs = aws.getAvailabilityZones({ state: "available" });
 const vpc = createVpc(baseCidrBlock, ipRange);
 const ig = createInternetGateway(vpc.id);
@@ -45,36 +48,39 @@ azs
 
     createPublicRoute(publicRouteTable, ig.id);
 
-    const appSecurityGroup = new aws.ec2.SecurityGroup("appSecurityGroup", {
-      description: "Security group for application servers",
-      vpcId: vpc.id,
-      ingress: [
-        {
-          protocol: "tcp",
-          fromPort: 80,
-          toPort: 80,
-          cidrBlocks: ["0.0.0.0/0"],
-        },
-        {
-          protocol: "tcp",
-          fromPort: 22,
-          toPort: 22,
-          cidrBlocks: ["0.0.0.0/0"],
-        },
-        {
-          protocol: "tcp",
-          fromPort: 443,
-          toPort: 443,
-          cidrBlocks: ["0.0.0.0/0"],
-        },
-        {
-          protocol: "tcp",
-          fromPort: 8080,
-          toPort: 8080,
-          cidrBlocks: ["0.0.0.0/0"],
-        },
-      ],
-    });
+    const appSecurityGroup = new aws.ec2.SecurityGroup(
+      "application security group",
+      {
+        description: "Security group for application servers",
+        vpcId: vpc.id,
+        ingress: [
+          {
+            protocol: "tcp",
+            fromPort: 80,
+            toPort: 80,
+            cidrBlocks: ["0.0.0.0/0"],
+          },
+          {
+            protocol: "tcp",
+            fromPort: 22,
+            toPort: 22,
+            cidrBlocks: ["0.0.0.0/0"],
+          },
+          {
+            protocol: "tcp",
+            fromPort: 443,
+            toPort: 443,
+            cidrBlocks: ["0.0.0.0/0"],
+          },
+          {
+            protocol: "tcp",
+            fromPort: 8080,
+            toPort: 8080,
+            cidrBlocks: ["0.0.0.0/0"],
+          },
+        ],
+      }
+    );
     aws.ec2
       .getAmi({
         mostRecent: true,
@@ -87,17 +93,18 @@ azs
         owners: ["252513075420"],
       })
       .then((ami) => {
-        console.log("AMIID", ami.id);
         new aws.ec2.Instance("appServer", {
           instanceType: "t2.micro",
           ami: ami.id,
           vpcSecurityGroupIds: [appSecurityGroup.id],
           subnetId: publicSubnets[0],
-          keyName: "ec2first",
+          keyName: keyName,
           rootBlockDevice: {
-            volumeSize: 25,
-            volumeType: "gp2",
+            volumeSize: volumeSize,
+            volumeType: volumeType,
+            deleteOnTermination: true,
           },
+          disableApiTermination: true,
         });
       });
   })
