@@ -1,12 +1,19 @@
 config:
   aws:profile: demo
-  aws:region: us-west-2
+  aws:region: us-west-1
   baseCidrBlock: 10.0.0.0
   ipRange: 16
   maxZones: 3
   volumeSize: 25
   volumeType: "gp2"
   keyName: "ec2first"
-  amiId: "ami-08e844e2c19264a83"
+  amiId: "ami-0f13d4f5bf7807cd8"
   securityName: "application security group"
   ec2Name: "EC2"
+  PGPORT: 5432
+  PGPASSWORD: password
+  PGUSER: csye6225
+  PGDATABASE: postgres
+  RDSDBNAME: csye6225
+  RDSUSERNAME: csye6225
+  RDSPASSWORD: password

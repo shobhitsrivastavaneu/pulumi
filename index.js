@@ -19,6 +19,14 @@ const keyName = config.get("keyName");
 const amiId = config.get("amiId");
 const ec2Name = config.get("ec2Name");
 const securityName = config.get("securityName");
+const PGPORT = config.get("PGPORT");
+const PGPASSWORD = config.get("PGPASSWORD");
+const PGUSER = config.get("PGUSER");
+const PGDATABASE = config.get("PGDATABASE");
+const RDSDBNAME = config.get("RDSDBNAME");
+const RDSUSERNAME = config.get("RDSUSERNAME");
+const RDSPASSWORD = config.get("RDSPASSWORD");
+
 const azs = aws.getAvailabilityZones({ state: "available" });
 const vpc = createVpc(baseCidrBlock, ipRange);
 const ig = createInternetGateway(vpc.id);
@@ -86,22 +94,96 @@ azs
             ipv6CidrBlocks: ["::/0"],
           },
         ],
+        egress: [
+          {
+            protocol: "-1", // All
+            fromPort: 0,
+            toPort: 0,
+            cidrBlocks: ["0.0.0.0/0"],
+          },
+        ],
         tags: {
           Name: securityName,
         },
       }
     );
+
+    const dbSubnetGroup = new aws.rds.SubnetGroup("db_subnet_group", {
+      subnetIds: privateSubnets, // Assuming `createSubnets` returns an array of subnet IDs
+      description: "RDS Subnet Group",
+      tags: {
+        Name: "RDS Subnet Group",
+      },
+    });
+
+    const rdsSecurityGroup = new aws.ec2.SecurityGroup("rdssg", {
+      description: "RDS security group",
+      vpcId: vpc.id,
+      ingress: [
+        {
+          protocol: "tcp",
+          fromPort: 5432,
+          toPort: 5432,
+          securityGroups: [appSecurityGroup.id],
+        },
+      ],
+      egress: [
+        {
+          protocol: "-1", // All
+          fromPort: 0,
+          toPort: 0,
+          cidrBlocks: ["0.0.0.0/0"],
+        },
+      ],
+    });
+
+    const dbParameterGroup = new aws.rds.ParameterGroup(
+      "my-db-parameter-group",
+      {
+        family: "postgres15",
+        description: "Custom parameter group for csye6225",
+      }
+    );
+    const rdsInstance = new aws.rds.Instance("csye6225", {
+      engine: "postgres",
+      instanceClass: "db.t3.micro",
+      engineVersion: 15,
+      allocatedStorage: 20,
+      parameterGroupName: dbParameterGroup.name,
+      storageType: "gp2",
+      dbName: RDSDBNAME,
+      username: RDSUSERNAME,
+      password: RDSPASSWORD,
+      skipFinalSnapshot: true,
+      vpcSecurityGroupIds: [rdsSecurityGroup.id],
+      dbSubnetGroupName: dbSubnetGroup.name,
+      publiclyAccessible: false,
+    });
+
     new aws.ec2.Instance("appServer", {
       instanceType: "t2.micro",
       ami: amiId,
       vpcSecurityGroupIds: [appSecurityGroup.id],
       subnetId: publicSubnets[0],
+      userDataReplaceOnChange: true,
+      userData: pulumi.interpolate`#!/bin/bash
+      cd /opt/csye6225
+      rm /opt/csye6225/.env
+      touch /opt/csye6225/.env
+      echo PGPORT=${PGPORT} >> /opt/csye6225/.env
+      echo PGUSER="${PGUSER}" >> /opt/csye6225/.env
+      echo PGPASSWORD="${PGPASSWORD}" >> /opt/csye6225/.env
+      echo PGDATABASE="${PGDATABASE}" >> /opt/csye6225/.env
+      echo CSVPATH="/opt/csye6225/users.csv" >> /opt/csye6225/.env
+      echo PGHOST=${rdsInstance.address} >> /opt/csye6225/.env
+      sudo systemctl restart nodeserver`,
       keyName: keyName,
       rootBlockDevice: {
         volumeSize: volumeSize,
         volumeType: volumeType,
         deleteOnTermination: true,
       },
+      dependsOn: [rdsInstance],
       tags: {
         Name: ec2Name,
       },
