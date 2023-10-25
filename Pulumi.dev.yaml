@@ -11,9 +11,9 @@ config:
   securityName: "application security group"
   ec2Name: "EC2"
   PGPORT: 5432
-  PGPASSWORD: password
-  PGUSER: csye6225
-  PGDATABASE: postgres
-  RDSDBNAME: csye6225
-  RDSUSERNAME: csye6225
-  RDSPASSWORD: password
+  PGPASSWORD: ""
+  PGUSER: ""
+  PGDATABASE: ""
+  RDSDBNAME: ""
+  RDSUSERNAME: ""
+  RDSPASSWORD: ""
