@@ -1,4 +1,5 @@
 const pulumi = require("@pulumi/pulumi");
+const route53 = require("@pulumi/aws/route53");
 const aws = require("@pulumi/aws");
 const { createVpc } = require("./resources/vpc");
 const { createInternetGateway } = require("./resources/gateway");
@@ -8,6 +9,9 @@ const {
   associateRouteTable,
   createPublicRoute,
 } = require("./resources/routeTable");
+
+const hostedZoneId = config.get("HostedZoneId");
+const domainName = config.get("DomainName");
 
 const config = new pulumi.Config();
 const baseCidrBlock = config.get("baseCidrBlock");
@@ -58,6 +62,49 @@ azs
     associateRouteTable(privateSubnets, privateRouteTable, "private");
 
     createPublicRoute(publicRouteTable, ig.id);
+
+    const cloudwatchLogsPolicy = new aws.iam.Policy("cloudwatchLogsPolicy", {
+      description: "A policy that allows sending logs to CloudWatch",
+      policy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Action: [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents",
+              "logs:DescribeLogStreams",
+            ],
+            Effect: "Allow",
+            Resource: "arn:aws:logs:*:*:*",
+          },
+        ],
+      }),
+    });
+
+    const ec2Role = new aws.iam.Role("ec2Role", {
+      assumeRolePolicy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Action: "sts:AssumeRole",
+            Effect: "Allow",
+            Principal: {
+              Service: "ec2.amazonaws.com",
+            },
+          },
+        ],
+      }),
+    });
+
+    new aws.iam.RolePolicyAttachment("rolePolicyAttachment", {
+      role: ec2Role.name,
+      policyArn: "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
+    });
+
+    const instanceProfile = new aws.iam.InstanceProfile("instanceProfile", {
+      role: ec2Role.name,
+    });
 
     const appSecurityGroup = new aws.ec2.SecurityGroup(
       "application security group",
@@ -160,12 +207,13 @@ azs
       publiclyAccessible: false,
     });
 
-    new aws.ec2.Instance("appServer", {
+    const ec2Instance = new aws.ec2.Instance("appServer", {
       instanceType: "t2.micro",
       ami: amiId,
       vpcSecurityGroupIds: [appSecurityGroup.id],
       subnetId: publicSubnets[0],
       userDataReplaceOnChange: true,
+      iamInstanceProfile: instanceProfile.name,
       userData: pulumi.interpolate`#!/bin/bash
       cd /opt/csye6225
       rm /opt/csye6225/.env
@@ -176,7 +224,10 @@ azs
       echo PGDATABASE="${PGDATABASE}" >> /opt/csye6225/.env
       echo CSVPATH="/opt/csye6225/users.csv" >> /opt/csye6225/.env
       echo PGHOST=${rdsInstance.address} >> /opt/csye6225/.env
-      sudo systemctl restart nodeserver`,
+      sudo systemctl restart nodeserver
+      sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \    -a fetch-config \    -m ec2 \    -c file:/opt/csye6225/configs/cloudwatch-agent-config.json \    -s
+      sudo systemctl enable amazon-cloudwatch-agent
+      sudo systemctl start amazon-cloudwatch-agent`,
       keyName: keyName,
       rootBlockDevice: {
         volumeSize: volumeSize,
@@ -188,6 +239,14 @@ azs
         Name: ec2Name,
       },
       disableApiTermination: false,
+    });
+    new route53.Record("aRecord", {
+      zoneId: hostedZoneId,
+      name: domainName,
+      type: "A",
+      ttl: 300,
+      records: [ec2Instance.publicIp], // Assumes ec2Instance has a public IP assigned
+      dependsOn: [ec2Instance],
     });
   })
   .catch((error) => {
