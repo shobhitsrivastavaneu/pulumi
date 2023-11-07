@@ -10,10 +10,9 @@ const {
   createPublicRoute,
 } = require("./resources/routeTable");
 
+const config = new pulumi.Config();
 const hostedZoneId = config.get("HostedZoneId");
 const domainName = config.get("DomainName");
-
-const config = new pulumi.Config();
 const baseCidrBlock = config.get("baseCidrBlock");
 const ipRange = config.get("ipRange");
 const maxZones = config.get("maxZones");
