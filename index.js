@@ -266,7 +266,6 @@ azs
     const launchtemplate = new aws.ec2.LaunchTemplate("launchtemplate", {
       name: "asg_launch_config",
       imageId: amiId,
-      // instanceInitiatedShutdownBehavior: "terminate",
       instanceType: "t2.micro",
       keyName: keyName,
       disableApiTermination: false,
@@ -299,7 +298,7 @@ azs
         {
           resourceType: "instance",
           tags: {
-            Name: "asg_launch_config",
+            Name: "csye6225_asg",
           },
         },
       ],
@@ -339,7 +338,7 @@ azs
       },
     });
 
-    const listener = new aws.lb.Listener("webAppListener", {
+    new aws.lb.Listener("webAppListener", {
       loadBalancerArn: loadbalancer.arn,
       port: "80",
       protocol: "HTTP",
@@ -382,9 +381,8 @@ azs
       scalingAdjustment: 1,
       cooldown: 60,
       adjustmentType: "ChangeInCapacity",
-      //estimatedInstanceWarmup: 60,
       autocreationCooldown: 60,
-      cooldownDescription: "Scale up policy when average CPU usage is above 5%",
+      cooldownDescription: "Scale up policy when CPU usage is above 5%",
       policyType: "SimpleScaling",
       scalingTargetId: asg.id,
     });
@@ -394,43 +392,35 @@ azs
       scalingAdjustment: -1,
       cooldown: 60,
       adjustmentType: "ChangeInCapacity",
-      //estimatedInstanceWarmup: 60,
       autocreationCooldown: 60,
-      cooldownDescription:
-        "Scale down policy when average CPU usage is below 3%",
+      cooldownDescription: "Scale down policy when CPU usage is below 3%",
       policyType: "SimpleScaling",
       scalingTargetId: asg.id,
     });
 
-    const cpuUtilizationAlarmHigh = new aws.cloudwatch.MetricAlarm(
-      "cpuUtilizationAlarmHigh",
-      {
-        comparisonOperator: "GreaterThanThreshold",
-        evaluationPeriods: 1,
-        metricName: "CPUUtilization",
-        namespace: "AWS/EC2",
-        period: 60,
-        threshold: 5,
-        statistic: "Average",
-        alarmActions: [scaleUpPolicy.arn],
-        dimensions: { AutoScalingGroupName: asg.name },
-      }
-    );
+    new aws.cloudwatch.MetricAlarm("cpuUtilizationAlarmHigh", {
+      comparisonOperator: "GreaterThanThreshold",
+      evaluationPeriods: 1,
+      metricName: "CPUUtilization",
+      namespace: "AWS/EC2",
+      period: 60,
+      threshold: 5,
+      statistic: "Average",
+      alarmActions: [scaleUpPolicy.arn],
+      dimensions: { AutoScalingGroupName: asg.name },
+    });
 
-    const cpuUtilizationAlarmLow = new aws.cloudwatch.MetricAlarm(
-      "cpuUtilizationAlarmLow",
-      {
-        comparisonOperator: "LessThanThreshold",
-        evaluationPeriods: 1,
-        metricName: "CPUUtilization",
-        namespace: "AWS/EC2",
-        period: 60,
-        statistic: "Average",
-        threshold: 3,
-        alarmActions: [scaleDownPolicy.arn],
-        dimensions: { AutoScalingGroupName: asg.name },
-      }
-    );
+    new aws.cloudwatch.MetricAlarm("cpuUtilizationAlarmLow", {
+      comparisonOperator: "LessThanThreshold",
+      evaluationPeriods: 1,
+      metricName: "CPUUtilization",
+      namespace: "AWS/EC2",
+      period: 60,
+      statistic: "Average",
+      threshold: 3,
+      alarmActions: [scaleDownPolicy.arn],
+      dimensions: { AutoScalingGroupName: asg.name },
+    });
     new aws.route53.Record(`aRecord`, {
       name: domainName,
       type: "A",
