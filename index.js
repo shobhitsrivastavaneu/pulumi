@@ -29,10 +29,13 @@ const PGDATABASE = config.get("PGDATABASE");
 const RDSDBNAME = config.get("RDSDBNAME");
 const RDSUSERNAME = config.get("RDSUSERNAME");
 const RDSPASSWORD = config.get("RDSPASSWORD");
+const MAILGUNKEY = config.get("mailgunkey");
+const MAILGUNDOMAIN = config.get("mailgundomain");
+const BUCKETNAME = config.get("bucketname");
 const gcp = require("@pulumi/gcp");
 
 const gcsBucket = new gcp.storage.Bucket("gcsBucket", {
-  name: "csye6225demolambdabucketv1",
+  name: BUCKETNAME,
   location: "us",
   forceDestroy: true,
   versioning: {
@@ -139,7 +142,7 @@ const dynamoDBTable = new aws.dynamodb.Table("dynamoDBTable", {
     {
       name: "status",
       type: "S",
-    }, 
+    },
     {
       name: "timestamp",
       type: "S",
@@ -213,6 +216,8 @@ const lambdaFunction = new aws.lambda.Function("LambdaFunction", {
       GCP_PRIVATE_KEY: serviceAccountKeys.privateKey,
       GCS_BUCKET_NAME: gcsBucket.name,
       DYNAMODB_TABLE_NAME: dynamoDBTable.name,
+      MAILGUN_KEY: MAILGUNKEY,
+      MAILGUN_DOMAIN: MAILGUNDOMAIN,
     },
   },
 });
@@ -359,11 +364,13 @@ azs
             fromPort: 22,
             toPort: 22,
             cidrBlocks: ["0.0.0.0/0"],
+            securityGroups: [lbSg.id],
           },
           {
             protocol: "tcp",
             fromPort: 8080,
             toPort: 8080,
+            securityGroups: [lbSg.id],
             cidrBlocks: ["0.0.0.0/0"],
           },
         ],
