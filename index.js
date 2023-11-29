@@ -29,6 +29,212 @@ const PGDATABASE = config.get("PGDATABASE");
 const RDSDBNAME = config.get("RDSDBNAME");
 const RDSUSERNAME = config.get("RDSUSERNAME");
 const RDSPASSWORD = config.get("RDSPASSWORD");
+const gcp = require("@pulumi/gcp");
+
+const gcsBucket = new gcp.storage.Bucket("gcsBucket", {
+  name: "csye6225demolambdabucketv1",
+  location: "us",
+  forceDestroy: true,
+  versioning: {
+    enabled: true,
+  },
+});
+
+const topic = new aws.sns.Topic("serverless", {
+  displayName: "serverless",
+});
+
+const lambdaRole = new aws.iam.Role("LambdaFunctionRole", {
+  assumeRolePolicy: JSON.stringify({
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Effect: "Allow",
+        Principal: {
+          Service: ["lambda.amazonaws.com"],
+        },
+        Action: ["sts:AssumeRole"],
+      },
+    ],
+  }),
+});
+
+const lambdaPolicyArns = [
+  "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
+  "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+  "arn:aws:iam::aws:policy/AWSLambda_FullAccess",
+  "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",
+];
+
+const cloudWatchLogsAttachment = new aws.iam.RolePolicyAttachment(
+  "lambdaPolicy-CloudWatchLogs",
+  {
+    role: lambdaRole.name,
+    policyArn: lambdaPolicyArns[0],
+  }
+);
+
+const s3FullAccessAttachment = new aws.iam.RolePolicyAttachment(
+  "lambdaPolicy-S3FullAccess",
+  {
+    role: lambdaRole.name,
+    policyArn: lambdaPolicyArns[1],
+  }
+);
+
+const lambdaFullAccessAttachment = new aws.iam.RolePolicyAttachment(
+  "lambdaPolicy-LambdaFullAccess",
+  {
+    role: lambdaRole.name,
+    policyArn: lambdaPolicyArns[2],
+  }
+);
+
+const dynamoDBFullAccessAttachment = new aws.iam.RolePolicyAttachment(
+  "lambdaPolicy-DynamoDBFullAccess",
+  {
+    role: lambdaRole.name,
+    policyArn: lambdaPolicyArns[3],
+  }
+);
+
+const topicPolicy = new aws.iam.Policy("EC2TopicAccessPolicy", {
+  policy: {
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Sid: "AllowEC2ToPublishToSNSTopic",
+        Effect: "Allow",
+        Action: ["sns:Publish", "sns:CreateTopic"],
+        Resource: topic.arn,
+      },
+    ],
+  },
+  roles: [lambdaRole],
+});
+
+const serviceAccount = new gcp.serviceaccount.Account("myServiceAccount", {
+  accountId: "gcp-bucket-service-account",
+  displayName: "GCP Bucket Service Account",
+});
+
+const bucketAccess = new gcp.storage.BucketIAMBinding("bucketAccess", {
+  bucket: gcsBucket.name,
+  role: "roles/storage.objectAdmin",
+  members: [pulumi.interpolate`serviceAccount:${serviceAccount.email}`],
+});
+
+const serviceAccountKeys = new gcp.serviceaccount.Key("myServiceAccountKeys", {
+  serviceAccountId: serviceAccount.id,
+});
+
+// Create a DynamoDB table
+const dynamoDBTable = new aws.dynamodb.Table("dynamoDBTable", {
+  name: "Csye6225_Demo_DynamoDB",
+  attributes: [
+    {
+      name: "id",
+      type: "S",
+    },
+    {
+      name: "status",
+      type: "S",
+    }, 
+    {
+      name: "timestamp",
+      type: "S",
+    },
+    {
+      name: "email",
+      type: "S",
+    },
+  ],
+  hashKey: "id",
+  rangeKey: "status",
+  readCapacity: 5,
+  writeCapacity: 5,
+  globalSecondaryIndexes: [
+    {
+      name: "TimestampIndex",
+      hashKey: "timestamp",
+      rangeKey: "id",
+      projectionType: "ALL",
+      readCapacity: 5,
+      writeCapacity: 5,
+    },
+    {
+      name: "EmailIndex",
+      hashKey: "email",
+      rangeKey: "id",
+      projectionType: "ALL",
+      readCapacity: 5,
+      writeCapacity: 5,
+    },
+  ],
+});
+// Create an IAM policy for DynamoDB access
+const dynamoDBPolicy = new aws.iam.Policy("DynamoDBAccessPolicy", {
+  policy: {
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Effect: "Allow",
+        Action: [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query", // Add other necessary actions
+        ],
+        Resource: dynamoDBTable.arn,
+      },
+    ],
+  },
+});
+
+// Attach the DynamoDB policy to the Lambda execution role
+const dynamoDBPolicyAttachment = new aws.iam.PolicyAttachment(
+  "DynamoDBPolicyAttachment",
+  {
+    policyArn: dynamoDBPolicy.arn,
+    roles: [lambdaRole.name],
+    dependsOn: [dynamoDBTable], // Assuming lambdaRole is the execution role for your Lambda function
+  }
+);
+
+const lambdaFunction = new aws.lambda.Function("LambdaFunction", {
+  functionName: "serverless",
+  role: lambdaRole.arn,
+  runtime: "nodejs16.x",
+  handler: "index.handler",
+  code: new pulumi.asset.FileArchive(
+    "/Users/shobhitsrivastava/Documents/CLOUD_ASSIGNMENTS/Assignment_9/serverless/Archive.zip"
+  ),
+  environment: {
+    variables: {
+      GCP_PRIVATE_KEY: serviceAccountKeys.privateKey,
+      GCS_BUCKET_NAME: gcsBucket.name,
+      DYNAMODB_TABLE_NAME: dynamoDBTable.name,
+    },
+  },
+});
+
+new aws.sns.TopicSubscription(`SNSSubscription`, {
+  topic: topic.arn,
+  protocol: "lambda",
+  endpoint: lambdaFunction.arn,
+});
+
+new aws.iam.PolicyAttachment("topicPolicyAttachment", {
+  policyArn: topicPolicy.arn,
+  roles: [lambdaRole.name],
+});
+
+new aws.lambda.Permission("with_sns", {
+  statementId: "AllowExecutionFromSNS",
+  action: "lambda:InvokeFunction",
+  function: lambdaFunction.name,
+  principal: "sns.amazonaws.com",
+  sourceArn: topic.arn,
+});
 
 const azs = aws.getAvailabilityZones({ state: "available" });
 const vpc = createVpc(baseCidrBlock, ipRange);
@@ -152,13 +358,13 @@ azs
             protocol: "tcp",
             fromPort: 22,
             toPort: 22,
-            securityGroups: [lbSg.id],
+            cidrBlocks: ["0.0.0.0/0"],
           },
           {
             protocol: "tcp",
             fromPort: 8080,
             toPort: 8080,
-            securityGroups: [lbSg.id],
+            cidrBlocks: ["0.0.0.0/0"],
           },
         ],
         egress: [
@@ -176,7 +382,7 @@ azs
     );
 
     const dbSubnetGroup = new aws.rds.SubnetGroup("db_subnet_group", {
-      subnetIds: privateSubnets, // Assuming `createSubnets` returns an array of subnet IDs
+      subnetIds: privateSubnets,
       description: "RDS Subnet Group",
       tags: {
         Name: "RDS Subnet Group",
@@ -237,6 +443,8 @@ azs
     echo PGDATABASE="${PGDATABASE}" >> /opt/csye6225/.env
     echo CSVPATH="/opt/csye6225/users.csv" >> /opt/csye6225/.env
     echo PGHOST=${rdsInstance.address} >> /opt/csye6225/.env
+    echo TopicArn=${topic.arn} >> /opt/csye6225/.env
+    echo AWS_REGION='us-west-1' >> /opt/csye6225/.env
     sudo systemctl restart nodeserver
     sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \    -a fetch-config \    -m ec2 \    -c file:/opt/csye6225/configs/cloudwatch-agent-config.json \    -s
     sudo systemctl enable amazon-cloudwatch-agent
@@ -262,6 +470,28 @@ azs
       },
       disableApiTermination: false,
     }); */
+
+    const snsPublishPolicy = new aws.iam.Policy("SNSPublishPolicy", {
+      policy: {
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Action: "sns:Publish",
+            Resource: topic.arn,
+          },
+        ],
+      },
+      roles: [ec2Role.name],
+    });
+
+    const snsPublishPolicyAttachment = new aws.iam.RolePolicyAttachment(
+      "SNSPublishPolicyAttachment",
+      {
+        role: ec2Role.name,
+        policyArn: snsPublishPolicy.arn,
+      }
+    );
 
     const launchtemplate = new aws.ec2.LaunchTemplate("launchtemplate", {
       name: "asg_launch_config",
@@ -437,5 +667,4 @@ azs
   .catch((error) => {
     console.error("Error creating subnets", error);
   });
-
 exports.vpcId = vpc.id;
