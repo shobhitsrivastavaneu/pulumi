@@ -32,6 +32,7 @@ const RDSPASSWORD = config.get("RDSPASSWORD");
 const MAILGUNKEY = config.get("mailgunkey");
 const MAILGUNDOMAIN = config.get("mailgundomain");
 const BUCKETNAME = config.get("bucketname");
+const SERVERLESSPATH = config.get("serverlessPath");
 const gcp = require("@pulumi/gcp");
 
 const gcsBucket = new gcp.storage.Bucket("gcsBucket", {
@@ -208,9 +209,7 @@ const lambdaFunction = new aws.lambda.Function("LambdaFunction", {
   role: lambdaRole.arn,
   runtime: "nodejs16.x",
   handler: "index.handler",
-  code: new pulumi.asset.FileArchive(
-    "/Users/shobhitsrivastava/Documents/CLOUD_ASSIGNMENTS/Assignment_9/serverless/Archive.zip"
-  ),
+  code: new pulumi.asset.FileArchive(SERVERLESSPATH),
   environment: {
     variables: {
       GCP_PRIVATE_KEY: serviceAccountKeys.privateKey,
