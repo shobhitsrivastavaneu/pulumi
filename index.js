@@ -33,6 +33,7 @@ const MAILGUNKEY = config.get("mailgunkey");
 const MAILGUNDOMAIN = config.get("mailgundomain");
 const BUCKETNAME = config.get("bucketname");
 const SERVERLESSPATH = config.get("serverlessPath");
+const CERTIFICATEARN = config.get("certificateArn");
 const gcp = require("@pulumi/gcp");
 
 const gcsBucket = new gcp.storage.Bucket("gcsBucket", {
@@ -551,6 +552,8 @@ azs
       securityGroups: [lbSg.id],
       subnets: publicSubnets,
       enableDeletionProtection: false,
+      sslPolicy: "ELBSecurityPolicy-2016-08",
+      enableHttp2: true,
       tags: {
         Application: "WebApp",
       },
@@ -576,8 +579,10 @@ azs
 
     new aws.lb.Listener("webAppListener", {
       loadBalancerArn: loadbalancer.arn,
-      port: "80",
-      protocol: "HTTP",
+      port: 443,
+      protocol: "HTTPS",
+      sslPolicy: "ELBSecurityPolicy-2016-08",
+      certificateArn: CERTIFICATEARN,
       defaultActions: [
         {
           type: "forward",
