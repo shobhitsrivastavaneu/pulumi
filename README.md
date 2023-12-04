@@ -15,3 +15,8 @@ This project sets up a VPC with public and private subnets in a given AWS region
 2. **Install Dependencies**:
 
 
+### Added certificate
+ 
+- aws acm import-certificate --certificate file://Certificate.pem --certificate-chain file://CertificateChain.pem --private-key file://PrivateKey.pem --profile demo
+
+
